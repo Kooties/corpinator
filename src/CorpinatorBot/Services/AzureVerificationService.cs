@@ -100,6 +100,11 @@ namespace CorpinatorBot.Services
                     return false;
                 }
 
+                if(user.MailNickname.Contains("#EXT#"))
+                {
+                    return false;
+                }
+
                 if (guild.RequiresOrganization)
                 {
                     var org = GetOrg(verification.CorpUserId.ToString(), guild.Organization, graph);

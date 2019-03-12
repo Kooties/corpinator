@@ -18,7 +18,7 @@ namespace CorpinatorBot
     {
         private static async Task Main(string[] args)
         {
-            IHostBuilder hostBuilder = new HostBuilder()
+            var hostBuilder = new HostBuilder()
             .ConfigureHostConfiguration(config =>
             {
                 config.AddEnvironmentVariables("BOTHOSTING:");
@@ -35,7 +35,7 @@ namespace CorpinatorBot
                     config.AddUserSecrets("CorpinatorBot");
                 }
 
-                BotSecretsConfig secrets = new BotSecretsConfig();
+                var secrets = new BotSecretsConfig();
                 IConfigurationRoot builtConfig;
                 if (context.HostingEnvironment.IsProduction())
                 {
@@ -60,12 +60,12 @@ namespace CorpinatorBot
             })
             .ConfigureServices((context, services) =>
             {
-                BotSecretsConfig secrets = context.Properties["botSecrets"] as BotSecretsConfig;
+                var secrets = context.Properties["botSecrets"] as BotSecretsConfig;
                 var socketConfig = new DiscordSocketConfig();
                 context.Configuration.Bind(socketConfig);
                 services.AddSingleton(socketConfig);
 
-                CloudTableClient tableClient = InitializeStorage(secrets).ConfigureAwait(false).GetAwaiter().GetResult();
+                var tableClient = InitializeStorage(secrets).ConfigureAwait(false).GetAwaiter().GetResult();
                 services.AddSingleton(tableClient);
                 services.AddSingleton(secrets);
                 RegisterDiscordClient(services, secrets, socketConfig);
@@ -73,6 +73,7 @@ namespace CorpinatorBot
                 services.AddTransient<IVerificationService, AzureVerificationService>();
 
                 services.AddHostedService<DiscordBot>();
+                services.AddHostedService<OngoingValidator>();
             })
             .UseConsoleLifetime();
 
@@ -82,7 +83,7 @@ namespace CorpinatorBot
 
         private static void RegisterDiscordClient(IServiceCollection services, BotSecretsConfig config, DiscordSocketConfig socketConfig)
         {
-            DiscordSocketClient client = new DiscordSocketClient(socketConfig);
+            var client = new DiscordSocketClient(socketConfig);
 
             services.AddSingleton<IDiscordClient>(client);
             services.AddSingleton(client);
@@ -90,12 +91,12 @@ namespace CorpinatorBot
 
         private static async Task<CloudTableClient> InitializeStorage(BotSecretsConfig secrets)
         {
-            CloudStorageAccount storageClient = CloudStorageAccount.Parse(secrets.TableStorageConnectionString);
-            CloudTableClient tableClient = storageClient.CreateCloudTableClient();
+            var storageClient = CloudStorageAccount.Parse(secrets.TableStorageConnectionString);
+            var tableClient = storageClient.CreateCloudTableClient();
 
-            CloudTable verificationsReference = tableClient.GetTableReference("verifications");
+            var verificationsReference = tableClient.GetTableReference("verifications");
             await verificationsReference.CreateIfNotExistsAsync();
-            CloudTable configurationReference = tableClient.GetTableReference("configuration");
+            var configurationReference = tableClient.GetTableReference("configuration");
             await configurationReference.CreateIfNotExistsAsync();
             return tableClient;
         }

@@ -73,6 +73,12 @@ namespace CorpinatorBot.Modules
                 await _verificationService.VerifyCode();
                 await _verificationService.LoadUserDetails(Context.Configuration.Organization);
 
+                if (_verificationService.Alias.Contains("#EXT#"))
+                {
+                    await ReplyAsync("This account is external to Microsoft, and is not eligable for validation.");
+                    return;
+                }
+
                 if (Context.Configuration.RequiresOrganization && !_verificationService.Organization.Equals(Context.Configuration.Organization))
                 {
                     await dmChannel.SendMessageAsync($"We see that you are a current Microsoft employee, however, this server requires that you be in a specific org in order to receive the validated status.");
@@ -168,7 +174,7 @@ namespace CorpinatorBot.Modules
         [Command("setusertypes"), RequireOwner]
         public async Task ConfigureUserTypes(params UserType[] userTypes)
         {
-            UserType appliedUserTypes = UserType.None;
+            var appliedUserTypes = UserType.None;
             foreach(var userType in userTypes)
             {
                 appliedUserTypes |= userType;
@@ -182,7 +188,7 @@ namespace CorpinatorBot.Modules
         [Command("setrole"), RequireOwner]
         public async Task ConfigureRole(IRole role)
         {
-            SocketRole guildRole = Context.Guild.Roles.SingleOrDefault(a => a.Id == role.Id);
+            var guildRole = Context.Guild.Roles.SingleOrDefault(a => a.Id == role.Id);
 
             if (guildRole == null)
             {
@@ -226,20 +232,20 @@ namespace CorpinatorBot.Modules
         [Command("settings"), RequireOwner]
         public async Task Settings()
         {
-            string settings = JsonConvert.SerializeObject(Context.Configuration, Formatting.Indented);
+            var settings = JsonConvert.SerializeObject(Context.Configuration, Formatting.Indented);
             await ReplyAsync(Format.Code(settings));
         }
 
         [Command("query"), RequireOwner]
         public async Task List(IUser user)
         {
-            string userId = user.Id.ToString();
-            string guildId = Context.Guild.Id.ToString();
-            TableResult verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
+            var userId = user.Id.ToString();
+            var guildId = Context.Guild.Id.ToString();
+            var verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
 
             if (verificationResult.HttpStatusCode == 200)
             {
-                string userJson = JsonConvert.SerializeObject(verificationResult.Result, Formatting.Indented);
+                var userJson = JsonConvert.SerializeObject(verificationResult.Result, Formatting.Indented);
                 await ReplyAsync(userJson);
             }
             else
@@ -257,8 +263,8 @@ namespace CorpinatorBot.Modules
                 return;
             }
 
-            string userId = guildUser.Id.ToString();
-            string guildId = Context.Guild.Id.ToString();
+            var userId = guildUser.Id.ToString();
+            var guildId = Context.Guild.Id.ToString();
             var verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
 
             if (verificationResult.HttpStatusCode == 200)

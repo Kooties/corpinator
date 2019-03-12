@@ -25,7 +25,6 @@ namespace CorpinatorBot.Discord
         private readonly CloudTable _table;
         private readonly DiscordSocketConfig _botConfig;
         private readonly DiscordSocketClient _discordClient;
-        private readonly Timer _cleanupTimer;
 
 
         private CommandService _commandService;
@@ -39,7 +38,6 @@ namespace CorpinatorBot.Discord
             _table = tableClient.GetTableReference("configuration");
             _botConfig = botConfig;
             _discordClient = new DiscordSocketClient(botConfig);
-            _cleanupTimer = new Timer(CleanupUsers, null, Timeout.Infinite, Timeout.Infinite);
         }
 
         public Task StartAsync(CancellationToken cancellationToken) => StartBotAsync();
@@ -47,8 +45,6 @@ namespace CorpinatorBot.Discord
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _exiting = true;
-            _cleanupTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            _cleanupTimer.Dispose();
 
             return StopBotAsync();
         }
@@ -118,8 +114,7 @@ namespace CorpinatorBot.Discord
                 ThrowOnError = true
             });
 
-            _commandService.AddModulesAsync(Assembly.GetExecutingAssembly());
-            _cleanupTimer.Change(TimeSpan.FromMinutes(1), TimeSpan.FromDays(1));
+            _commandService.AddModulesAsync(Assembly.GetExecutingAssembly(), _serviceProvider);
             return Task.CompletedTask;
         }
 
@@ -205,43 +200,6 @@ namespace CorpinatorBot.Discord
                 default:
                     return LogLevel.Information;
             }
-        }
-
-        private async void CleanupUsers(object state)
-        {
-            _logger.LogInformation("Begin clean up of users");
-            try
-            {
-                var tableClient = _serviceProvider.GetRequiredService<CloudTableClient>();
-                var verificationService = _serviceProvider.GetRequiredService<IVerificationService>();
-
-                var verificationsTable = tableClient.GetTableReference("verifications");
-                var configTable = tableClient.GetTableReference("configuration");
-                var verifications = await verificationsTable.GetAllRecords<Verification>();
-                var guilds = await configTable.GetAllRecords<GuildConfiguration>();
-
-                foreach (var config in guilds)
-                {
-                    var guildUsers = verifications.Where(a => a.PartitionKey == config.RowKey);
-
-                    foreach (var guildUser in guildUsers)
-                    {
-                        var exists = await verificationService.VerifyUser(guildUser, config);
-
-                        if (!exists)
-                        {
-                            _logger.LogWarning($"{guildUser.Alias} is either no longer with the company, or no longer reports to {config.Organization}, about to remove verification role and storage.");
-                            //todo: remove from role, remove from table
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // to avoid crashing the whole thing because async void heressy
-                _logger.LogError(ex, $"Error while running the {nameof(CleanupUsers)} background job");
-            }
-            _logger.LogInformation("Done cleaning up users");
         }
     }
 }
