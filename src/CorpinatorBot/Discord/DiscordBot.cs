@@ -88,7 +88,7 @@ namespace CorpinatorBot.Discord
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Fialed to connect: {ex.Message}");
+                    _logger.LogError($"Failed to connect: {ex.Message}");
                     await Task.Delay(currentAttempt * 1000);
                 }
             }
