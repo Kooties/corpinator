@@ -135,43 +135,47 @@ namespace CorpinatorBot.Discord
                 return;
             }
 
-            var argPos = 0;
+            _ = Task.Run(async () =>
+              {
+                  var argPos = 0;
 
-            var guildId = guildChannel.Guild.Id.ToString();
+                  var guildId = guildChannel.Guild.Id.ToString();
 
-            GuildConfiguration config;
-            var configResult = await _table.ExecuteAsync(TableOperation.Retrieve<GuildConfiguration>("config", guildId));
-            if (configResult.Result == null)
-            {
-                config = new GuildConfiguration
-                {
-                    PartitionKey = "config",
-                    RowKey = guildId,
-                    Prefix = "!",
-                    RequiresOrganization = false,
-                    Organization = string.Empty,
-                    RoleId = default
-                };
-            }
-            else
-            {
-                config = configResult.Result as GuildConfiguration;
-            }
+                  GuildConfiguration config;
+                  var configResult = await _table.ExecuteAsync(TableOperation.Retrieve<GuildConfiguration>("config", guildId));
+                  if (configResult.Result == null)
+                  {
+                      config = new GuildConfiguration
+                      {
+                          PartitionKey = "config",
+                          RowKey = guildId,
+                          Prefix = "!",
+                          RequiresOrganization = false,
+                          Organization = string.Empty,
+                          RoleId = default
+                      };
+                  }
+                  else
+                  {
+                      config = configResult.Result as GuildConfiguration;
+                  }
 
-            if (!userMessage.HasStringPrefix(config.Prefix, ref argPos))
-            {
-                return;
-            }
+                  if (!userMessage.HasStringPrefix(config.Prefix, ref argPos))
+                  {
+                      return;
+                  }
 
-            var context = new GuildConfigSocketCommandContext(_discordClient, userMessage, config);
+                  var context = new GuildConfigSocketCommandContext(_discordClient, userMessage, config);
 
-            var result = await _commandService.ExecuteAsync(context, argPos, _serviceProvider, MultiMatchHandling.Best);
+                  var result = await _commandService.ExecuteAsync(context, argPos, _serviceProvider, MultiMatchHandling.Best);
 
-            if (!result.IsSuccess && (result.Error != CommandError.UnknownCommand || result.Error != CommandError.BadArgCount))
-            {
-                _logger.LogError($"{result.Error}: {result.ErrorReason}");
-                await userMessage.AddReactionAsync(new Emoji("⚠"));
-            }
+                  if (!result.IsSuccess && (result.Error != CommandError.UnknownCommand || result.Error != CommandError.BadArgCount))
+                  {
+                      _logger.LogError($"{result.Error}: {result.ErrorReason}");
+                      await userMessage.AddReactionAsync(new Emoji("⚠"));
+                  }
+              });
+            await Task.CompletedTask;
         }
 
         private Task OnLog(LogMessage arg)
