@@ -1,7 +1,7 @@
-FROM microsoft/dotnet:2.2-runtime AS base
+FROM mcr.microsoft.com/dotnet/core/runtime:3.0 AS base
 WORKDIR /app
 
-FROM microsoft/dotnet:2.2-sdk AS build
+FROM mcr.microsoft.com/dotnet/core/sdk:3.0 AS build
 WORKDIR /src
 COPY CorpinatorBot/CorpinatorBot.csproj CorpinatorBot/
 RUN dotnet restore CorpinatorBot/CorpinatorBot.csproj
