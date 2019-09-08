@@ -6,7 +6,6 @@ using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Linq;
 using System.Threading;
@@ -17,19 +16,21 @@ namespace CorpinatorBot.Discord
     public class OngoingValidator : IHostedService
     {
         private readonly ILogger<OngoingValidator> _logger;
-        private readonly CloudTableClient _tableClient;
         private readonly IVerificationService _verificationService;
+        private readonly IGuildConfigService _guildConfig;
         private readonly IDiscordClient _discord;
+        private readonly IVerificationStorageService _verificationStorage;
         private readonly Timer _verificationTimer;
 
-        public OngoingValidator(ILogger<OngoingValidator> logger, CloudTableClient tableClient, IVerificationService verificationService, IDiscordClient discord)
+        public OngoingValidator(ILogger<OngoingValidator> logger, IVerificationService verificationService, IDiscordClient discord, 
+            IVerificationStorageService verificationStorage, IGuildConfigService guildConfig)
         {
             _logger = logger;
-            _tableClient = tableClient;
             _verificationService = verificationService;
+            _guildConfig = guildConfig;
             _discord = discord;
-
-            _verificationTimer = new Timer(CleanupUsers, null, Timeout.Infinite, Timeout.Infinite);
+            _verificationStorage = verificationStorage;
+            _verificationTimer = new Timer(async s => await CleanupUsers(s), null, Timeout.Infinite, Timeout.Infinite);
         }
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -44,22 +45,23 @@ namespace CorpinatorBot.Discord
             return Task.CompletedTask;
         }
 
-        private async void CleanupUsers(object state)
+        private async Task CleanupUsers(object state)
         {
             _logger.LogInformation("Begin clean up of users");
             try
             {
-                var verificationsTable = _tableClient.GetTableReference("verifications");
-                var configTable = _tableClient.GetTableReference("configuration");
-                var verifications = await verificationsTable.GetAllRecords<Verification>();
-                var guilds = await configTable.GetAllRecords<GuildConfiguration>();
+                var guilds = await _guildConfig.GetAllConfigurations();
 
                 foreach (var config in guilds)
                 {
-                    var guildUsers = verifications.Where(a => a.PartitionKey == config.RowKey);
-                    
+                    var guildUsers = await _verificationStorage.GetAllVerificationsInGuild(ulong.Parse(config.RowKey));
+
                     //todo: handle if the user is no longer in the guild
                     //todo: remove the role from the user
+                    //todo: go through roles and remove users from verifications (with respect to manually added);
+                    //todo: go through the list of people in the backend DB and anyone who isn't in the server anymore, 
+                    //      clear them out of the DB (alt: hook the member left event and remove their verification)
+
                     foreach (var guildUser in guildUsers)
                     {
                         var exists = await _verificationService.VerifyUser(guildUser, config);
@@ -67,7 +69,7 @@ namespace CorpinatorBot.Discord
                         if (!exists)
                         {
                             _logger.LogWarning($"{guildUser.Alias} is either no longer with the company, or no longer reports to {config.Organization}, about to remove verification role and storage.");
-                            var successful = await RemoveFromRole(ulong.Parse(guildUser.RowKey), ulong.Parse(guildUser.PartitionKey), ulong.Parse(config.RoleId));
+                            var successful = await RemoveFromRole(guildUser.DiscordId, guildUser.GuildId, ulong.Parse(config.RoleId));
                             if(successful) 
                             {
                                 _logger.LogInformation($"Removing verification tracking of {guildUser.Alias}");

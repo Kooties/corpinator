@@ -10,6 +10,7 @@ namespace CorpinatorBot.ConfigModels
         public int AllowedUserTypes { get; set; }
         public bool RequiresOrganization { get; set; }
         public string Organization { get; set; }
+        public string ChannelId { get; set; }
 
         [IgnoreProperty]
         public UserType AllowedUserTypesFlag

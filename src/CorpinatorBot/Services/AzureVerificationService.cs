@@ -138,6 +138,7 @@ namespace CorpinatorBot.Services
                     if (tlmUser.MailNickname.Equals(shouldReportTo, StringComparison.OrdinalIgnoreCase))
                     {
                         Organization = shouldReportTo;
+                        return shouldReportTo;
                     }
                 }
                 catch (ServiceException ex) when (ex.Error.Code == "Request_ResourceNotFound" && ex.Error.Message.Contains("manager"))
