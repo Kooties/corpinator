@@ -71,7 +71,7 @@ namespace CorpinatorBot.Modules
 
                 if (_verificationService.Alias.Contains("#EXT#"))
                 {
-                    await dmChannel.SendMessageAsync("This account is external to Microsoft, and is not eligable for validation.");
+                    await dmChannel.SendMessageAsync("This account is external to Microsoft and is not eligible for validation.");
                     return;
                 }
 
