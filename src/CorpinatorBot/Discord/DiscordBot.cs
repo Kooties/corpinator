@@ -20,9 +20,10 @@ namespace CorpinatorBot.Discord
     public class DiscordBot : IHostedService
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly IVerificationStorageService _verificationStorage;
         private readonly ILogger<DiscordBot> _logger;
+        private readonly IGuildConfigService _guildConfigService;
         private readonly BotSecretsConfig _connectionConfig;
-        private readonly CloudTable _table;
         private readonly DiscordSocketConfig _botConfig;
         private readonly DiscordSocketClient _discordClient;
 
@@ -30,12 +31,14 @@ namespace CorpinatorBot.Discord
         private CommandService _commandService;
         private bool _exiting;
 
-        public DiscordBot(IServiceProvider serviceProvider, ILogger<DiscordBot> logger, DiscordSocketConfig botConfig, BotSecretsConfig connectionConfig, CloudTableClient tableClient)
+        public DiscordBot(IServiceProvider serviceProvider, ILogger<DiscordBot> logger, DiscordSocketConfig botConfig, BotSecretsConfig connectionConfig, 
+            IGuildConfigService guildConfigService, IVerificationStorageService verificationStorage)
         {
             _serviceProvider = serviceProvider;
+            _verificationStorage = verificationStorage;
             _logger = logger;
+            _guildConfigService = guildConfigService;
             _connectionConfig = connectionConfig;
-            _table = tableClient.GetTableReference("configuration");
             _botConfig = botConfig;
             _discordClient = new DiscordSocketClient(botConfig);
         }
@@ -107,6 +110,9 @@ namespace CorpinatorBot.Discord
         private Task OnReady()
         {
             _discordClient.MessageReceived += OnMessageReceived;
+            _discordClient.LeftGuild += OnBotLeftGuild;
+            _discordClient.UserLeft += OnMemberLeftGuild;
+            _discordClient.UserBanned += OnMemberBanned;
             _commandService = new CommandService(new CommandServiceConfig
             {
                 LogLevel = _botConfig.LogLevel,
@@ -118,46 +124,64 @@ namespace CorpinatorBot.Discord
             return Task.CompletedTask;
         }
 
-        private async Task OnMessageReceived(SocketMessage message)
+        private Task OnMemberBanned(SocketUser user, SocketGuild guild)
+        {
+            return RemoveVerificationForUser(user.Id, guild.Id);
+        }
+
+        private Task OnMemberLeftGuild(SocketGuildUser user)
+        {
+            return RemoveVerificationForUser(user.Guild.Id, user.Id);
+        }
+
+
+        private async Task OnBotLeftGuild(SocketGuild guild)
+        {
+            _logger.LogInformation($"Leaving guild {guild.Name}({guild.Id}); removing verifications for the users.");
+            var verificationsForGuild = await _verificationStorage.GetAllVerificationsInGuild(guild.Id);
+            foreach(var verification in verificationsForGuild)
+            {
+                try
+                {
+                    await RemoveVerificationForUser(verification.GuildId, verification.DiscordId);
+                }
+                catch(Exception ex)
+                {
+                    _logger.LogError(ex, $"Unable to remove verification for {verification.Alias}({verification.DiscordId}) in guild {guild.Name}({guild.Id})");
+                }
+            }
+        }
+        private Task RemoveVerificationForUser(ulong guildId, ulong userId)
+        {
+            return _verificationStorage.RemoveVerification(guildId, userId);
+        }
+
+        private Task OnMessageReceived(SocketMessage message)
         {
             if (message.Author.IsBot)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             if (!(message is SocketUserMessage userMessage))
             {
-                return;
+                return Task.CompletedTask;
             }
 
             if (!(message.Channel is SocketGuildChannel guildChannel))
             {
-                return;
+                return Task.CompletedTask;
             }
 
             _ = Task.Run(async () =>
               {
                   var argPos = 0;
 
-                  var guildId = guildChannel.Guild.Id.ToString();
-
-                  GuildConfiguration config;
-                  var configResult = await _table.ExecuteAsync(TableOperation.Retrieve<GuildConfiguration>("config", guildId));
-                  if (configResult.Result == null)
+                  var guildId = guildChannel.Guild.Id;
+                  var config = await _guildConfigService.GetGuildConfiguration(guildId);
+                  if(config.ChannelId != default  && config.ChannelId != guildChannel.Id.ToString())
                   {
-                      config = new GuildConfiguration
-                      {
-                          PartitionKey = "config",
-                          RowKey = guildId,
-                          Prefix = "!",
-                          RequiresOrganization = false,
-                          Organization = string.Empty,
-                          RoleId = default
-                      };
-                  }
-                  else
-                  {
-                      config = configResult.Result as GuildConfiguration;
+                      return;
                   }
 
                   if (!userMessage.HasStringPrefix(config.Prefix, ref argPos))
@@ -175,7 +199,7 @@ namespace CorpinatorBot.Discord
                       await userMessage.AddReactionAsync(new Emoji("⚠"));
                   }
               });
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         private Task OnLog(LogMessage arg)

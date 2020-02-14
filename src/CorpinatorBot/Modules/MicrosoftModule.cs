@@ -1,5 +1,4 @@
-﻿using CorpinatorBot.ConfigModels;
-using CorpinatorBot.Discord;
+﻿using CorpinatorBot.Discord;
 using CorpinatorBot.Services;
 using CorpinatorBot.VerificationModels;
 using Discord;
@@ -7,7 +6,6 @@ using Discord.Commands;
 using Discord.Net;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System;
 using System.Linq;
@@ -18,15 +16,15 @@ namespace CorpinatorBot.Modules
     [Group("microsoft"), Alias("teamxbox")]
     public class MicrosoftModule : ModuleBase<GuildConfigSocketCommandContext>
     {
-        private readonly CloudTable _verificationTable;
-        private readonly CloudTable _configurationTable;
+        private readonly IVerificationStorageService _verificationStorage;
+        private readonly IGuildConfigService _guildConfigService;
         private readonly ILogger<MicrosoftModule> _logger;
         private readonly IVerificationService _verificationService;
 
-        public MicrosoftModule(CloudTableClient tableClient, BotSecretsConfig secretsConfig, ILogger<MicrosoftModule> logger, IVerificationService verificationService)
+        public MicrosoftModule(ILogger<MicrosoftModule> logger, IVerificationService verificationService, IGuildConfigService guildConfigService, IVerificationStorageService verificationStorage)
         {
-            _verificationTable = tableClient.GetTableReference("verifications");
-            _configurationTable = tableClient.GetTableReference("configuration");
+            _verificationStorage = verificationStorage;
+            _guildConfigService = guildConfigService;
             _logger = logger;
             _verificationService = verificationService;
         }
@@ -39,18 +37,18 @@ namespace CorpinatorBot.Modules
                 return;
             }
             
-            var discordId = guildUser.Id.ToString();
-            var guildId = Context.Guild.Id.ToString();
-            var verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, discordId));
-
-            if (verificationResult.HttpStatusCode == 200)
+            var discordId = guildUser.Id;
+            var guildId = Context.Guild.Id;
+            var verificationResult = await _verificationStorage.GetVerification(guildId, discordId);
+            
+            if (verificationResult != null)
             {
                 await ReplyAsync("You are already verified in this server.");
                 return;
             }
 
             var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
-            var verification = new Verification { PartitionKey = guildId, RowKey = discordId };
+            var verification = new Verification { GuildId = guildId, DiscordId = discordId };
             
             try
             {
@@ -73,7 +71,7 @@ namespace CorpinatorBot.Modules
 
                 if (_verificationService.Alias.Contains("#EXT#"))
                 {
-                    await dmChannel.SendMessageAsync("This account is external to Microsoft, and is not eligable for validation.");
+                    await dmChannel.SendMessageAsync("This account is external to Microsoft and is not eligible for validation.");
                     return;
                 }
 
@@ -95,9 +93,7 @@ namespace CorpinatorBot.Modules
                 verification.Alias = _verificationService.Alias;
                 verification.ValidatedOn = DateTimeOffset.UtcNow;
                 verification.Department = _verificationService.Department;
-
-                var mergeResult = await _verificationTable.ExecuteAsync(TableOperation.InsertOrMerge(verification));
-
+                await _verificationStorage.SaveVerification(verification);
                 await dmChannel.SendMessageAsync($"Thanks for validating your status with Microsoft. You can unlink your accounts at any time with the `{Context.Configuration.Prefix}microsoft leave` command.");
                 var role = Context.Guild.Roles.SingleOrDefault(a => a.Id == ulong.Parse(Context.Configuration.RoleId));
                 await guildUser.AddRoleAsync(role);
@@ -123,15 +119,15 @@ namespace CorpinatorBot.Modules
                 return;
             }
 
-            var userId = guildUser.Id.ToString();
-            var guildId = Context.Guild.Id.ToString();
-            var verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
+            var userId = guildUser.Id;
+            var guildId = Context.Guild.Id;
+            var verificationResult = await _verificationStorage.GetVerification(guildId, userId);
 
-            if (verificationResult.HttpStatusCode == 200)
+            if (verificationResult != null)
             {
-                var deleteResult = await _verificationTable.ExecuteAsync(TableOperation.Delete(verificationResult.Result as Verification));
+                var deleteResult = await _verificationStorage.RemoveVerification(guildId, userId);
 
-                if (deleteResult.HttpStatusCode == 204)
+                if (deleteResult)
                 {
                     var role = Context.Guild.GetRole(ulong.Parse(Context.Configuration.RoleId));
                     await guildUser.RemoveRoleAsync(role);
@@ -152,21 +148,19 @@ namespace CorpinatorBot.Modules
         [Command("who"), RequireUserPermission(GuildPermission.Administrator)]
         public async Task Who(IUser user)
         {
-            var userId = user.Id.ToString();
-            var guildId = Context.Guild.Id.ToString();
+            var userId = user.Id;
+            var guildId = Context.Guild.Id;
 
-            var result = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
+            var result = await _verificationStorage.GetVerification(guildId, userId);
 
-            if(result.HttpStatusCode != 200)
+            if(result == null)
             {
                 await ReplyAsync("User is not verified");
                 return;
             }
-
-            var verification = result.Result as Verification;
-
+            
             var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
-            await dmChannel.SendMessageAsync($"{user.Username}#{user.Discriminator} is verified as {verification.Alias}.");
+            await dmChannel.SendMessageAsync($"{user.Username}#{user.Discriminator} is verified as {result.Alias}.");
         }
 
         [Command("setusertypes"), RequireOwner]
@@ -179,8 +173,24 @@ namespace CorpinatorBot.Modules
             }
 
             Context.Configuration.AllowedUserTypesFlag = appliedUserTypes;
-            await _configurationTable.ExecuteAsync(TableOperation.InsertOrReplace(Context.Configuration));
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
             await ReplyAsync($"allowed user types are now set to {Context.Configuration.AllowedUserTypesFlag}");
+        }
+
+        [Command("setchannel"), RequireOwner]
+        public async Task SetChannel(ITextChannel channel)
+        {
+            Context.Configuration.ChannelId = channel.Id.ToString();
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
+            await ReplyAsync($"Channel is now set to {channel.Mention}");
+        }
+
+        [Command("clearchannel"), RequireOwner]
+        public async Task ClearChannel()
+        {
+            Context.Configuration.ChannelId = null;
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
+            await ReplyAsync($"Channel requirement cleared");
         }
 
         [Command("setrole"), RequireOwner]
@@ -196,7 +206,7 @@ namespace CorpinatorBot.Modules
 
             Context.Configuration.RoleId = guildRole.Id.ToString();
 
-            var result = await _configurationTable.ExecuteAsync(TableOperation.InsertOrReplace(Context.Configuration));
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
             await ReplyAsync($"Role is now set to {guildRole.Name}.");
         }
 
@@ -205,7 +215,7 @@ namespace CorpinatorBot.Modules
         {
             Context.Configuration.Prefix = prefix;
 
-            await _configurationTable.ExecuteAsync(TableOperation.InsertOrReplace(Context.Configuration));
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
             await ReplyAsync($"Prefix is now set to {prefix}.");
         }
 
@@ -214,7 +224,7 @@ namespace CorpinatorBot.Modules
         {
             Context.Configuration.RequiresOrganization = require;
 
-            await _configurationTable.ExecuteAsync(TableOperation.InsertOrReplace(Context.Configuration));
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
             await ReplyAsync($"RequireOrganization now set to {require}.");
         }
 
@@ -223,7 +233,7 @@ namespace CorpinatorBot.Modules
         {
             Context.Configuration.Organization = alias;
 
-            await _configurationTable.ExecuteAsync(TableOperation.InsertOrReplace(Context.Configuration));
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
             await ReplyAsync($"Organization now set to {alias}.");
         }
 
@@ -237,13 +247,13 @@ namespace CorpinatorBot.Modules
         [Command("query"), RequireOwner]
         public async Task List(IUser user)
         {
-            var userId = user.Id.ToString();
-            var guildId = Context.Guild.Id.ToString();
-            var verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
+            var userId = user.Id;
+            var guildId = Context.Guild.Id;
+            var verificationResult = await _verificationStorage.GetVerification(guildId, userId);
 
-            if (verificationResult.HttpStatusCode == 200)
+            if (verificationResult != null )
             {
-                var userJson = JsonConvert.SerializeObject(verificationResult.Result, Formatting.Indented);
+                var userJson = JsonConvert.SerializeObject(verificationResult, Formatting.Indented);
                 await ReplyAsync(userJson);
             }
             else
@@ -261,14 +271,14 @@ namespace CorpinatorBot.Modules
                 return;
             }
 
-            var userId = guildUser.Id.ToString();
-            var guildId = Context.Guild.Id.ToString();
-            var verificationResult = await _verificationTable.ExecuteAsync(TableOperation.Retrieve<Verification>(guildId, userId));
+            var userId = guildUser.Id;
+            var guildId = Context.Guild.Id;
+            var verificationResult = await _verificationStorage.GetVerification(guildId, userId);
 
-            if (verificationResult.HttpStatusCode == 200)
+            if (verificationResult != null)
             {
-                var deleteResult = await _verificationTable.ExecuteAsync(TableOperation.Delete(verificationResult.Result as Verification));
-                if (deleteResult.HttpStatusCode == 204)
+                var deleteResult = await _verificationStorage.RemoveVerification(guildUser.Id, Context.Guild.Id);
+                if (deleteResult)
                 {
                     var role = Context.Guild.GetRole(uint.Parse(Context.Configuration.RoleId));
                     await guildUser.RemoveRoleAsync(role);
