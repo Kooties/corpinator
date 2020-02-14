@@ -1,7 +1,7 @@
 ﻿using CorpinatorBot.ConfigModels;
 using CorpinatorBot.VerificationModels;
 using Microsoft.Graph;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
+using Microsoft.Identity.Client;
 using System;
 using System.Threading.Tasks;
 
@@ -10,10 +10,10 @@ namespace CorpinatorBot.Services
     public class AzureVerificationService : IVerificationService
     {
         private readonly BotSecretsConfig _secretsConfig;
-        private readonly AuthenticationContext _authContext;
-
+        
+        private readonly IPublicClientApplication _pca;
+        private readonly IConfidentialClientApplication _app;
         private AuthenticationResult _authResult = default;
-        private DeviceCodeResult _deviceCode;
 
         public string UserId { get; private set; }
         public string Alias { get; private set; }
@@ -24,7 +24,18 @@ namespace CorpinatorBot.Services
         public AzureVerificationService(BotSecretsConfig secretsConfig)
         {
             _secretsConfig = secretsConfig;
-            _authContext = new AuthenticationContext($"https://login.microsoftonline.com/{_secretsConfig.AadTenant}");
+        
+            _pca = PublicClientApplicationBuilder
+                .Create(_secretsConfig.DeviceAuthAppId)
+                .WithAuthority($"https://login.microsoftonline.com/{_secretsConfig.AadTenant}")
+                .WithDefaultRedirectUri()
+                .Build();
+
+            _app = ConfidentialClientApplicationBuilder
+                .Create(_secretsConfig.AkvClientId)
+                .WithClientSecret(_secretsConfig.AkvSecret)
+                .WithAuthority($"https://login.microsoftonline.com/{_secretsConfig.AadTenant}")
+                .Build();
         }
 
         public async Task LoadUserDetails(string shouldReportTo)
@@ -36,7 +47,7 @@ namespace CorpinatorBot.Services
 
             var graph = new GraphServiceClient("https://graph.microsoft.com/beta", new GraphAuthenticationProvider(_authResult));
 
-            UserId = _authResult.UserInfo.UniqueId;
+            UserId = _authResult.UniqueId;
 
             var user = await graph.Me.Request().GetAsync();
 
@@ -63,24 +74,16 @@ namespace CorpinatorBot.Services
             Organization = await GetOrg(UserId, shouldReportTo, graph);
         }
 
-        public async Task<string> GetCode()
+        public async Task VerifyCode(Func<string, Task> deviceCodeCallback)
         {
-            _deviceCode = await _authContext.AcquireDeviceCodeAsync("https://graph.microsoft.com", _secretsConfig.DeviceAuthAppId);
-            return _deviceCode.Message;
-        }
-
-        public async Task VerifyCode()
-        {
-            if (_deviceCode == default)
-            {
-                throw new InvalidOperationException($"Device code unavailable. Make sure {nameof(GetCode)} is called before this method.");
-            }
-
             try
             {
-                _authResult = await _authContext.AcquireTokenByDeviceCodeAsync(_deviceCode);
+                _authResult = await _pca.AcquireTokenWithDeviceCode(new[] { "Directory.AccessAsUser.All" }, result =>
+                {
+                    return deviceCodeCallback(result.Message);
+                }).ExecuteAsync();
             }
-            catch (AdalServiceException ex) when (ex.ErrorCode == "code_expired")
+            catch (MsalClientException ex)
             {
                 throw new VerificationException(ex.Message, ex, ex.ErrorCode);
             }
@@ -88,7 +91,7 @@ namespace CorpinatorBot.Services
 
         public async Task<bool> VerifyUser(Verification verification, GuildConfiguration guild)
         {
-            var botAuthResult = await _authContext.AcquireTokenAsync("https://graph.microsoft.com", new ClientCredential(_secretsConfig.AkvClientId, _secretsConfig.AkvSecret));
+            var botAuthResult = await _app.AcquireTokenForClient(new[] { "https://graph.microsoft.com/.default" }).ExecuteAsync();
 
             var graph = new GraphServiceClient("https://graph.microsoft.com/beta", new GraphAuthenticationProvider(botAuthResult));
 

@@ -1,5 +1,5 @@
 ﻿using Microsoft.Graph;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
+using Microsoft.Identity.Client;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
@@ -16,7 +16,7 @@ namespace CorpinatorBot.Services
 
         public Task AuthenticateRequestAsync(HttpRequestMessage request)
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue(_authresult.AccessTokenType, _authresult.AccessToken);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _authresult.AccessToken);
 
             return Task.CompletedTask;
         }

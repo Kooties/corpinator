@@ -20,7 +20,6 @@ namespace CorpinatorBot.Modules
     {
         private readonly CloudTable _verificationTable;
         private readonly CloudTable _configurationTable;
-        private readonly BotSecretsConfig _secretsConfig;
         private readonly ILogger<MicrosoftModule> _logger;
         private readonly IVerificationService _verificationService;
 
@@ -28,7 +27,6 @@ namespace CorpinatorBot.Modules
         {
             _verificationTable = tableClient.GetTableReference("verifications");
             _configurationTable = tableClient.GetTableReference("configuration");
-            _secretsConfig = secretsConfig;
             _logger = logger;
             _verificationService = verificationService;
         }
@@ -51,26 +49,26 @@ namespace CorpinatorBot.Modules
                 return;
             }
 
-            var verification = new Verification { PartitionKey = guildId, RowKey = discordId };
-            var code = await _verificationService.GetCode();
-
             var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            var verification = new Verification { PartitionKey = guildId, RowKey = discordId };
+            
             try
             {
-                await dmChannel.SendMessageAsync("After you authenticate with your corp account, we will collect and store your department, alias, " +
-                    "and your corp user id. This data will only be used to validate your current status for the purpose of managing the verified role on this server.");
-                await dmChannel.SendMessageAsync(code);
-                await ReplyAsync($"{Context.User.Mention}, check your DMs for instructions.");
-            }
-            catch (HttpException ex) when (ex.DiscordCode == 50007)
-            {
-                await ReplyAsync($"{Context.User.Mention}, Please temporarily allow DMs from this server and try again.");
-                return;
-            }
-
-            try
-            {
-                await _verificationService.VerifyCode();
+                await _verificationService.VerifyCode(async message =>
+                {
+                    try
+                    {
+                        await dmChannel.SendMessageAsync("After you authenticate with your corp account, we will collect and store your department, alias, " +
+                            "and your corp user id. This data will only be used to validate your current status for the purpose of managing the verified role on this server.");
+                        await dmChannel.SendMessageAsync(message);
+                        await ReplyAsync($"{Context.User.Mention}, check your DMs for instructions.");
+                    }
+                    catch (HttpException ex) when (ex.DiscordCode == 50007)
+                    {
+                        await ReplyAsync($"{Context.User.Mention}, Please temporarily allow DMs from this server and try again.");
+                        return;
+                    }
+                });
                 await _verificationService.LoadUserDetails(Context.Configuration.Organization);
 
                 if (_verificationService.Alias.Contains("#EXT#"))

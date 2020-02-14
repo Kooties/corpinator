@@ -1,5 +1,6 @@
 ﻿using CorpinatorBot.ConfigModels;
 using CorpinatorBot.VerificationModels;
+using System;
 using System.Threading.Tasks;
 
 namespace CorpinatorBot.Services
@@ -13,8 +14,7 @@ namespace CorpinatorBot.Services
         UserType UserType { get; }
 
         Task LoadUserDetails(string shouldReportTo);
-        Task<string> GetCode();
-        Task VerifyCode();
+        Task VerifyCode(Func<string, Task> codeCallback);
         Task<bool> VerifyUser(Verification verification, GuildConfiguration guild);
     }
 }
