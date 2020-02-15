@@ -71,6 +71,12 @@ namespace CorpinatorBot.Services
         {
             var verificationsReference = _tableClient.GetTableReference("verifications");
             var verificationEntity = await verificationsReference.ExecuteAsync(TableOperation.Retrieve<VerificationEntity>(guildId.ToString(), discordId.ToString()));
+
+            if(verificationEntity.HttpStatusCode == 404)
+            {
+                return false;
+            }
+
             var deleteResult = await verificationsReference.ExecuteAsync(TableOperation.Delete(verificationEntity.Result as VerificationEntity));
             return deleteResult.HttpStatusCode == 204;
         }
