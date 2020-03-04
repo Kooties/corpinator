@@ -277,7 +277,7 @@ namespace CorpinatorBot.Modules
 
             if (verificationResult != null)
             {
-                var deleteResult = await _verificationStorage.RemoveVerification(guildUser.Id, Context.Guild.Id);
+                var deleteResult = await _verificationStorage.RemoveVerification(Context.Guild.Id, guildUser.Id);
                 if (deleteResult)
                 {
                     var role = Context.Guild.GetRole(uint.Parse(Context.Configuration.RoleId));
