@@ -1,7 +1,6 @@
 ﻿using CorpinatorBot.ConfigModels;
 using CorpinatorBot.Extensions;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.Azure.Cosmos.Table;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -10,7 +9,7 @@ namespace CorpinatorBot.Services
 {
     public class TableStorageGuildConfigService : IGuildConfigService
     {
-        private ConcurrentDictionary<ulong, GuildConfiguration> cachedConfig = new ConcurrentDictionary<ulong, GuildConfiguration>();
+        private readonly ConcurrentDictionary<ulong, GuildConfiguration> cachedConfig = new ConcurrentDictionary<ulong, GuildConfiguration>();
         private readonly CloudTableClient _tableClient;
 
         public TableStorageGuildConfigService(BotSecretsConfig secrets)

@@ -1,8 +1,7 @@
 ﻿using CorpinatorBot.ConfigModels;
 using CorpinatorBot.Extensions;
 using CorpinatorBot.VerificationModels;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.Azure.Cosmos.Table;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;

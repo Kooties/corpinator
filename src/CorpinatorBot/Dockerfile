@@ -1,12 +1,14 @@
-FROM mcr.microsoft.com/dotnet/core/runtime:3.1 AS base
+FROM mcr.microsoft.com/dotnet/runtime:5 AS base
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/core/sdk:3.1 AS build
+FROM mcr.microsoft.com/dotnet/sdk:5 AS build
 WORKDIR /src
 COPY CorpinatorBot/CorpinatorBot.csproj CorpinatorBot/
-RUN dotnet restore CorpinatorBot/CorpinatorBot.csproj
-COPY . .
-WORKDIR /src/CorpinatorBot
+COPY .nuget/nuget.config .nuget/nuget.config
+RUN dotnet restore CorpinatorBot/CorpinatorBot.csproj --configfile .nuget/nuget.config
+
+COPY /src/ /src
+WORKDIR src/CorpinatorBot
 RUN dotnet build CorpinatorBot.csproj -c Release -o /app
 
 FROM build AS publish

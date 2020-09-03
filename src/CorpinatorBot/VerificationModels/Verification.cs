@@ -1,5 +1,4 @@
-﻿using Microsoft.WindowsAzure.Storage.Table;
-using System;
+﻿using System;
 
 namespace CorpinatorBot.VerificationModels
 {

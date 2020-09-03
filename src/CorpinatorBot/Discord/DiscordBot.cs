@@ -1,16 +1,11 @@
 ﻿using CorpinatorBot.ConfigModels;
-using CorpinatorBot.Extensions;
 using CorpinatorBot.Services;
-using CorpinatorBot.VerificationModels;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAzure.Storage.Table;
 using System;
-using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -211,23 +206,16 @@ namespace CorpinatorBot.Discord
 
         private LogLevel MapToLogLevel(LogSeverity severity)
         {
-            switch (severity)
+            return severity switch
             {
-                case LogSeverity.Critical:
-                    return LogLevel.Critical;
-                case LogSeverity.Error:
-                    return LogLevel.Error;
-                case LogSeverity.Warning:
-                    return LogLevel.Warning;
-                case LogSeverity.Info:
-                    return LogLevel.Information;
-                case LogSeverity.Verbose:
-                    return LogLevel.Trace;
-                case LogSeverity.Debug:
-                    return LogLevel.Debug;
-                default:
-                    return LogLevel.Information;
-            }
+                LogSeverity.Critical => LogLevel.Critical,
+                LogSeverity.Error => LogLevel.Error,
+                LogSeverity.Warning => LogLevel.Warning,
+                LogSeverity.Info => LogLevel.Information,
+                LogSeverity.Verbose => LogLevel.Trace,
+                LogSeverity.Debug => LogLevel.Debug,
+                _ => LogLevel.Information,
+            };
         }
     }
 }
