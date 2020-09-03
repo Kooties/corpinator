@@ -8,20 +8,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Discord.Net" Version="2.3.0-dev-20200520.3" />
-        <PackageReference Include="Microsoft.Azure.Cosmos.Table" Version="1.0.7" />
-        <PackageReference Include="Microsoft.Azure.Storage.Blob" Version="11.1.5" />
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.AzureKeyVault" Version="3.1.4" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="5.0.0-preview.4.20251.6" />
-        <PackageReference Include="Microsoft.Graph" Version="3.6.0" />
-        <PackageReference Include="Microsoft.Identity.Client" Version="4.14.0" />
+        <PackageReference Include="Discord.Net" Version="2.3.0-dev-20200806.2" />
+        <PackageReference Include="Microsoft.Azure.Cosmos.Table" Version="2.0.0-preview" />
+        <PackageReference Include="Microsoft.Azure.Storage.Blob" Version="11.2.2" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.AzureKeyVault" Version="3.1.7" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="5.0.0-preview.8.20407.11" />
+        <PackageReference Include="Microsoft.Graph" Version="3.12.0" />
+        <PackageReference Include="Microsoft.Identity.Client" Version="4.18.0" />
     </ItemGroup>
 
     <ItemGroup>
