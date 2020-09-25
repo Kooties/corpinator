@@ -7,7 +7,7 @@ COPY CorpinatorBot/CorpinatorBot.csproj CorpinatorBot/
 COPY .nuget/nuget.config .nuget/nuget.config
 RUN dotnet restore CorpinatorBot/CorpinatorBot.csproj --configfile .nuget/nuget.config
 
-COPY /src/ /src
+COPY . .
 WORKDIR src/CorpinatorBot
 RUN dotnet build CorpinatorBot.csproj -c Release -o /app
 
