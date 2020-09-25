@@ -8,11 +8,10 @@ COPY .nuget/nuget.config .nuget/nuget.config
 RUN dotnet restore CorpinatorBot/CorpinatorBot.csproj --configfile .nuget/nuget.config
 
 COPY . .
-WORKDIR src/CorpinatorBot
-RUN dotnet build CorpinatorBot.csproj -c Release -o /app
+RUN dotnet build CorpinatorBot/CorpinatorBot.csproj -c Release -o /app
 
 FROM build AS publish
-RUN dotnet publish CorpinatorBot.csproj -c Release -o /app
+RUN dotnet publish CorpinatorBot/CorpinatorBot.csproj -c Release -o /app
 
 FROM base AS final
 WORKDIR /app
