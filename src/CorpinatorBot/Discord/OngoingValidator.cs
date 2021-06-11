@@ -37,6 +37,7 @@ namespace CorpinatorBot.Discord
             _verificationTimer.Change(TimeSpan.FromMinutes(1), TimeSpan.FromDays(1));
             return Task.CompletedTask;
         }
+
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _verificationTimer.Change(Timeout.Infinite, Timeout.Infinite);
@@ -54,14 +55,15 @@ namespace CorpinatorBot.Discord
 
                 foreach (var config in guilds)
                 {
-                    var guildUsers = await _verificationStorage.GetAllVerificationsInGuild(ulong.Parse(config.RowKey));
+                    var guildId = ulong.Parse(config.RowKey);
+                    if(!config.CleanupEnabled)
+                    {
+                        _logger.LogInformation($"Skipping cleanup for guild {guildId}");
+                        continue;
+                    }
 
-                    //todo: handle if the user is no longer in the guild
-                    //todo: remove the role from the user
-                    //todo: go through roles and remove users from verifications (with respect to manually added);
-                    //todo: go through the list of people in the backend DB and anyone who isn't in the server anymore, 
-                    //      clear them out of the DB (alt: hook the member left event and remove their verification)
-
+                    var guildUsers = await _verificationStorage.GetAllVerificationsInGuild(guildId);
+                    
                     foreach (var guildUser in guildUsers)
                     {
                         var exists = await _verificationService.VerifyUser(guildUser, config);
@@ -74,8 +76,11 @@ namespace CorpinatorBot.Discord
                             {
                                 _logger.LogInformation($"Removing verification tracking of {guildUser.Alias}");
                                 // what-if mode for now
-                                //await verificationsTable.ExecuteAsync(TableOperation.Delete(guildUser));
-                                
+                                var removeVerificationSuccessful = await _verificationStorage.RemoveVerification(guildId, guildUser.DiscordId);
+                                if(!removeVerificationSuccessful)
+                                {
+                                    _logger.LogCritical($"Removing user {guildUser.DiscordId} from the verifications table failed.");
+                                }
                             }
                         }
                     }
@@ -83,7 +88,6 @@ namespace CorpinatorBot.Discord
             }
             catch (Exception ex)
             {
-                // to avoid crashing the whole thing because async void
                 _logger.LogError(ex, $"Error while running the {nameof(CleanupUsers)} background job");
             }
             _logger.LogInformation("Done cleaning up users");
@@ -93,10 +97,8 @@ namespace CorpinatorBot.Discord
         {
             try
             {
-                var guild = (await _discord.GetGuildAsync(guildId)) as SocketGuild;
-                var user = (await _discord.GetUserAsync(userId)) as SocketGuildUser;
-
-                if (guild == null || user == null)
+                if (!((await _discord.GetGuildAsync(guildId)) is SocketGuild guild) 
+                 || !((await _discord.GetUserAsync(userId)) is SocketGuildUser user))
                 {
                     _logger.LogInformation($"User {userId} or guild {guildId} does not exist.");
                     return true;

@@ -14,6 +14,7 @@ namespace CorpinatorBot.Discord
 {
     public class DiscordBot : IHostedService
     {
+        private readonly IHostApplicationLifetime _lifetime;
         private readonly IServiceProvider _serviceProvider;
         private readonly IVerificationStorageService _verificationStorage;
         private readonly ILogger<DiscordBot> _logger;
@@ -26,9 +27,10 @@ namespace CorpinatorBot.Discord
         private CommandService _commandService;
         private bool _exiting;
 
-        public DiscordBot(IServiceProvider serviceProvider, ILogger<DiscordBot> logger, DiscordSocketConfig botConfig, BotSecretsConfig connectionConfig, 
-            IGuildConfigService guildConfigService, IVerificationStorageService verificationStorage)
+        public DiscordBot(IServiceProvider serviceProvider, ILogger<DiscordBot> logger, DiscordSocketConfig botConfig, BotSecretsConfig connectionConfig,
+            IGuildConfigService guildConfigService, IVerificationStorageService verificationStorage, IHostApplicationLifetime lifetime)
         {
+            _lifetime = lifetime;
             _serviceProvider = serviceProvider;
             _verificationStorage = verificationStorage;
             _logger = logger;
@@ -93,11 +95,16 @@ namespace CorpinatorBot.Discord
             while (currentAttempt < maxAttempts);
         }
 
-        private Task OnDisconnected(Exception arg)
+        private Task OnDisconnected(Exception ex)
         {
+            if (ex is GatewayReconnectException)
+            {
+                return Task.CompletedTask;
+            }
+
             if (!_exiting)
             {
-                Environment.Exit(0);
+                _lifetime.StopApplication();
             }
             return Task.CompletedTask;
         }
@@ -121,34 +128,29 @@ namespace CorpinatorBot.Discord
 
         private Task OnMemberBanned(SocketUser user, SocketGuild guild)
         {
-            return RemoveVerificationForUser(user.Id, guild.Id);
+            return _verificationStorage.RemoveVerification(user.Id, guild.Id);
         }
 
         private Task OnMemberLeftGuild(SocketGuildUser user)
         {
-            return RemoveVerificationForUser(user.Guild.Id, user.Id);
+            return _verificationStorage.RemoveVerification(user.Guild.Id, user.Id);
         }
-
 
         private async Task OnBotLeftGuild(SocketGuild guild)
         {
             _logger.LogInformation($"Leaving guild {guild.Name}({guild.Id}); removing verifications for the users.");
             var verificationsForGuild = await _verificationStorage.GetAllVerificationsInGuild(guild.Id);
-            foreach(var verification in verificationsForGuild)
+            foreach (var verification in verificationsForGuild)
             {
                 try
                 {
-                    await RemoveVerificationForUser(verification.GuildId, verification.DiscordId);
+                    await _verificationStorage.RemoveVerification(verification.GuildId, verification.DiscordId);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Unable to remove verification for {verification.Alias}({verification.DiscordId}) in guild {guild.Name}({guild.Id})");
                 }
             }
-        }
-        private Task RemoveVerificationForUser(ulong guildId, ulong userId)
-        {
-            return _verificationStorage.RemoveVerification(guildId, userId);
         }
 
         private Task OnMessageReceived(SocketMessage message)
@@ -174,7 +176,7 @@ namespace CorpinatorBot.Discord
 
                   var guildId = guildChannel.Guild.Id;
                   var config = await _guildConfigService.GetGuildConfiguration(guildId);
-                  if(config.ChannelId != default  && config.ChannelId != guildChannel.Id.ToString())
+                  if (config.ChannelId != default && config.ChannelId != guildChannel.Id.ToString())
                   {
                       return;
                   }
@@ -204,7 +206,7 @@ namespace CorpinatorBot.Discord
             return Task.CompletedTask;
         }
 
-        private LogLevel MapToLogLevel(LogSeverity severity)
+        private static LogLevel MapToLogLevel(LogSeverity severity)
         {
             return severity switch
             {

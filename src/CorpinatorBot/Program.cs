@@ -64,13 +64,13 @@ namespace CorpinatorBot
                 services.AddSingleton(socketConfig);
 
                 services.AddSingleton(secrets);
-                RegisterDiscordClient(services, secrets, socketConfig);
+                RegisterDiscordClient(services, socketConfig);
                 services.AddSingleton<IVerificationStorageService, TableStorageVerificationStorageService>();
                 services.AddSingleton<IGuildConfigService, TableStorageGuildConfigService>();
                 services.AddTransient<IVerificationService, AzureVerificationService>();
 
                 services.AddHostedService<DiscordBot>();
-                //services.AddHostedService<OngoingValidator>();
+                services.AddHostedService<OngoingValidator>();
             })
             .UseConsoleLifetime();
 
@@ -78,7 +78,7 @@ namespace CorpinatorBot
 
         }
 
-        private static void RegisterDiscordClient(IServiceCollection services, BotSecretsConfig config, DiscordSocketConfig socketConfig)
+        private static void RegisterDiscordClient(IServiceCollection services, DiscordSocketConfig socketConfig)
         {
             var client = new DiscordSocketClient(socketConfig);
 

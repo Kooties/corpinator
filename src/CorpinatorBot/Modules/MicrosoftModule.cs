@@ -110,7 +110,6 @@ namespace CorpinatorBot.Modules
             }
         }
 
-
         [Command("leave")]
         public async Task Leave()
         {
@@ -145,22 +144,20 @@ namespace CorpinatorBot.Modules
             }
         }
 
-        [Command("who"), RequireUserPermission(GuildPermission.Administrator)]
-        public async Task Who(IUser user)
+        [Command("enablecleanup"), RequireOwner]
+        public async Task EnableCleanup()
         {
-            var userId = user.Id;
-            var guildId = Context.Guild.Id;
+            Context.Configuration.CleanupEnabled = true;
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
+            await ReplyAsync($"This guild is now enabled for automatic cleanup of the <@&{Context.Configuration.RoleId}> role.");
+        }
 
-            var result = await _verificationStorage.GetVerification(guildId, userId);
-
-            if(result == null)
-            {
-                await ReplyAsync("User is not verified");
-                return;
-            }
-            
-            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
-            await dmChannel.SendMessageAsync($"{user.Username}#{user.Discriminator} is verified as {result.Alias}.");
+        [Command("disablecleanup"), RequireOwner]
+        public async Task DisableCleanup()
+        {
+            Context.Configuration.CleanupEnabled = false;
+            await _guildConfigService.SaveConfiguration(Context.Configuration);
+            await ReplyAsync($"This guild is no longer enabled for automatic cleanup of the <@&{Context.Configuration.RoleId}> role.");
         }
 
         [Command("setusertypes"), RequireOwner]
@@ -207,7 +204,7 @@ namespace CorpinatorBot.Modules
             Context.Configuration.RoleId = guildRole.Id.ToString();
 
             await _guildConfigService.SaveConfiguration(Context.Configuration);
-            await ReplyAsync($"Role is now set to {guildRole.Name}.");
+            await ReplyAsync($"Role is now set to <@&{Context.Configuration.RoleId}>.");
         }
 
         [Command("setprefix"), RequireOwner]
@@ -253,8 +250,7 @@ namespace CorpinatorBot.Modules
 
             if (verificationResult != null )
             {
-                var userJson = JsonConvert.SerializeObject(verificationResult, Formatting.Indented);
-                await ReplyAsync(userJson);
+                await ReplyAsync($"{user.Username}#{user.Discriminator} is a verified user");
             }
             else
             {
