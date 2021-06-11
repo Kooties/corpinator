@@ -78,7 +78,7 @@ namespace CorpinatorBot.Services
         {
             try
             {
-                _authResult = await _pca.AcquireTokenWithDeviceCode(new[] { "Directory.AccessAsUser.All" }, result =>
+                _authResult = await _pca.AcquireTokenWithDeviceCode(new[] { "User.Read.All" }, result =>
                 {
                     return deviceCodeCallback(result.Message);
                 }).ExecuteAsync();
